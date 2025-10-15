@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teachable Machine 影像模型｜互動美化版 + 安全載入</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b1220; --panel: #0f172a; --muted: #94a3b8; --text: #e2e8f0;
+      --primary: #60a5fa; --accent: #34d399; --danger: #f87171; --warn:#f59e0b;
+      --shadow: 0 10px 30px rgba(2,6,23,.4); --radius: 16px;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg:#f6f7fb; --panel:#fff; --muted:#64748b; --text:#0f172a;
+        --primary:#2563eb; --accent:#059669; --danger:#dc2626; --warn:#d97706;
+        --shadow:0 8px 24px rgba(2,6,23,.08);
+      }
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; background: radial-gradient(1200px 600px at 10% -10%, rgba(37,99,235,.18), transparent 60%),
+                                    radial-gradient(1000px 500px at 110% 10%, rgba(52,211,153,.12), transparent 60%),
+                                    var(--bg);
+      color:var(--text); font-family: Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      line-height:1.6; display:grid; place-items:center; padding:24px;
+    }
+    .app{width:min(1200px,100%)}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px}
+    .title{display:flex; align-items:center; gap:12px}
+    .logo{width:42px; height:42px; display:grid; place-items:center; border-radius:12px; background:linear-gradient(135deg, rgba(96,165,250,.25), rgba(52,211,153,.18)); box-shadow:inset 0 0 0 1px rgba(148,163,184,.2)}
+    h1{font-size:clamp(18px,3.2vw,28px); margin:0; letter-spacing:.2px}
+    .sub{color:var(--muted); font-size:14px}
+
+    .grid{display:grid; grid-template-columns: 1.2fr .8fr; gap:16px}
+    @media (max-width: 1000px){.grid{grid-template-columns:1fr}}
+
+    .card{background:var(--panel); border-radius:var(--radius); box-shadow:var(--shadow); border:1px solid rgba(148,163,184,.12)}
+    .card .hd{display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid rgba(148,163,184,.12)}
+    .card .hd h2{margin:0; font-size:16px; letter-spacing:.3px}
+
+    .stage{display:grid; grid-template-rows:auto 1fr auto}
+    .stage .view{position:relative; aspect-ratio:4/3; overflow:hidden; border-radius: calc(var(--radius) - 8px); margin:14px; background:rgba(2,6,23,.3); display:grid; place-items:center}
+    canvas{max-width:100%; height:100%}
+    .watermark{position:absolute; inset:auto 10px 10px auto; background:rgba(15,23,42,.55); border:1px solid rgba(148,163,184,.18); padding:6px 10px; border-radius:999px; font-size:12px; color:var(--muted)}
+    .controls{display:flex; gap:10px; flex-wrap:wrap; padding:0 14px 14px}
+
+    .btn{appearance:none; border:none; background:var(--primary); color:white; padding:10px 14px; border-radius:12px; font-weight:700; letter-spacing:.2px; cursor:pointer; box-shadow:0 6px 14px rgba(37,99,235,.25); transition: transform .08s ease, filter .2s ease}
+    .btn:hover{filter:brightness(1.05)}
+    .btn:active{transform:translateY(1px)}
+    .btn.sec{background:transparent; color:var(--text); border:1px solid rgba(148,163,184,.26); box-shadow:none}
+    .btn.danger{background:var(--danger); box-shadow:0 6px 14px rgba(220,38,38,.22)}
+    .btn.warn{background:var(--warn)}
+    .btn.ghost{background:transparent; color:var(--muted); border:1px dashed rgba(148,163,184,.26)}
+
+    .statusbar{display:flex; align-items:center; gap:10px; padding:10px 14px}
+    .pill{padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(148,163,184,.16); background:rgba(148,163,184,.08); color:var(--muted)}
+    .pill.ok{color:#0ea5e9; background:rgba(14,165,233,.12); border-color:rgba(14,165,233,.22)}
+    .pill.live{color:#22c55e; background:rgba(34,197,94,.1); border-color:rgba(34,197,94,.22)}
+    .pill.err{color:#ef4444; background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.22)}
+
+    .pred-list{padding:10px 14px 16px; display:grid; gap:10px}
+    .pred{background:rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.14); padding:8px 10px; border-radius:12px}
+    .pred .row{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px}
+    .pred .name{font-weight:700}
+    .pred .val{font-variant-numeric: tabular-nums}
+    .bar{height:8px; background:rgba(148,163,184,.18); border-radius:999px; overflow:hidden}
+    .bar>i{display:block; height:100%; width:0%; background:linear-gradient(90deg, var(--primary), var(--accent)); transition:width .28s ease}
+
+    .footer{display:flex; gap:12px; align-items:center; justify-content:space-between; padding:10px 14px 14px; color:var(--muted); font-size:13px}
+    .spacer{flex:1}
+    .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; padding:2px 6px; border-radius:6px; border:1px solid rgba(148,163,184,.3); background:rgba(148,163,184,.1); color:var(--text)}
+
+    .top1{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; background:rgba(52,211,153,.15); color:#10b981; border:1px solid rgba(52,211,153,.3); font-size:12px; font-weight:700}
+
+    .muted{color:var(--muted)}
+    .hint{font-size:12px; color:var(--muted)}
+
+    details.diag{padding:10px 14px 14px}
+    details.diag summary{cursor:pointer}
+    .kvs{display:grid; gap:6px; font-size:13px}
+    .kv{display:flex; gap:8px; align-items:center}
+    .kv b{min-width:140px}
+
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-labelledby="appTitle">
+    <header>
+      <div class="title">
+        <div class="logo" aria-hidden="true">🎥</div>
+        <div>
+          <h1 id="appTitle">Teachable Machine 影像分類 Demo</h1>
+          <div class="sub">美化介面 + 進階控制 + 信心條 + 模型來源切換</div>
+        </div>
+      </div>
+      <div class="hint">快捷鍵：<span class="kbd">S</span> 開始/暫停、<span class="kbd">F</span> 翻轉、<span class="kbd">C</span> 擷取影像</div>
+    </header>
+
+    <div class="grid">
+      <!-- 左側：相機舞台 -->
+      <section class="card stage" aria-label="相機舞台">
+        <div class="hd">
+          <h2>即時影像</h2>
+          <div id="livePill" class="pill">尚未啟動</div>
+        </div>
+        <div class="view">
+          <canvas id="webcamCanvas" aria-label="攝影機畫面"></canvas>
+          <div class="watermark" id="wm">FPS <span id="fps">0</span></div>
+        </div>
+        <div class="controls">
+          <button id="btnStart" class="btn" type="button">▶️ 開始</button>
+          <button id="btnStop" class="btn sec" type="button" disabled>⏸ 暫停</button>
+          <button id="btnFlip" class="btn ghost" type="button" disabled>🔁 翻轉</button>
+          <button id="btnShot" class="btn sec" type="button" disabled>📸 擷取</button>
+          <span class="spacer"></span>
+          <label class="hint">解析度
+            <select id="resSel" class="kbd" aria-label="解析度">
+              <option value="224">224</option>
+              <option value="320" selected>320</option>
+              <option value="480">480</option>
+            </select>
+          </label>
+        </div>
+        <div class="statusbar" id="statusBar" aria-live="polite">
+          <span class="pill ok" id="modelPill">模型：未載入</span>
+          <span class="pill" id="classesPill" hidden>分類類別：0</span>
+          <span class="pill" id="top1Pill" hidden><span class="top1">TOP‑1</span> <span id="top1Text" class="muted">—</span></span>
+        </div>
+      </section>
+
+      <!-- 右側：模型設定 / 預測結果 -->
+      <aside class="card" aria-label="預測結果">
+        <div class="hd">
+          <h2>模型設定與預測</h2>
+          <div class="pill" id="helpPill">請先載入模型</div>
+        </div>
+        <div style="padding:10px 14px 0; display:grid; gap:10px">
+          <label class="hint">模型 URL（資料夾路徑，須包含 <code>model.json</code> 與 <code>metadata.json</code>）</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
+            <input id="urlInput" class="kbd" style="flex:1; min-width:260px" placeholder="例：./my_model/ 或 https://.../my_model/" />
+            <button id="btnTestUrl" class="btn warn" type="button">🔎 測試 URL</button>
+            <button id="btnLoadUrl" class="btn" type="button">📦 從 URL 載入</button>
+          </div>
+          <div class="hint">也可改用「選資料夾」離線載入（免伺服器與 CORS）：</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+            <input id="dirPicker" type="file" webkitdirectory directory multiple class="kbd" />
+            <button id="btnLoadFiles" class="btn" type="button">📁 從資料夾載入</button>
+          </div>
+        </div>
+        <hr style="border:none; border-top:1px solid rgba(148,163,184,.12); margin:10px 0 0" />
+        <div class="pred-list" id="predList" aria-live="polite" style="min-height:110px">
+          <div class="muted">載入後會顯示分類與信心條。</div>
+        </div>
+        <div class="footer">
+          <div>狀態：<span id="statusText" class="muted">尚未載入模型</span></div>
+          <div class="spacer"></div>
+          <a id="downloadLink" class="kbd" href="#" download="snapshot.png" aria-disabled="true">下載擷取影像</a>
+        </div>
+        <details class="diag">
+          <summary>🧪 自我檢測（內建測試）</summary>
+          <div class="kvs" id="tests"></div>
+          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+            <button id="btnRunTests" class="btn sec" type="button">執行測試</button>
+            <button id="btnClearCache" class="btn ghost" type="button" title="清除記錄的模型 URL">清除模型 URL 記錄</button>
+          </div>
+        </details>
+      </aside>
+    </div>
+  </div>
+
+  <!-- 必須的外部腳本 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+  <script>
+    // 預設：若未指定，嘗試使用 ./my_model/（可改）
+    const DEFAULT_URL = './my_model/';
+
+    // 狀態
+    let model, webcam, maxPredictions = 0, flip = true, running = false;
+    let lastFrameTime = performance.now(), frames = 0, fps = 0;
+
+    // 元件參考
+    const webcamCanvas = document.getElementById('webcamCanvas');
+    const predList = document.getElementById('predList');
+    const statusText = document.getElementById('statusText');
+    const helpPill = document.getElementById('helpPill');
+    const modelPill = document.getElementById('modelPill');
+    const classesPill = document.getElementById('classesPill');
+    const top1Pill = document.getElementById('top1Pill');
+    const top1Text = document.getElementById('top1Text');
+    const livePill = document.getElementById('livePill');
+    const fpsEl = document.getElementById('fps');
+    const resSel = document.getElementById('resSel');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+    const btnFlip = document.getElementById('btnFlip');
+    const btnShot = document.getElementById('btnShot');
+    const downloadLink = document.getElementById('downloadLink');
+
+    // 模型來源 UI
+    const urlInput = document.getElementById('urlInput');
+    const btnTestUrl = document.getElementById('btnTestUrl');
+    const btnLoadUrl = document.getElementById('btnLoadUrl');
+    const dirPicker = document.getElementById('dirPicker');
+    const btnLoadFiles = document.getElementById('btnLoadFiles');
+
+    // 測試區
+    const testsEl = document.getElementById('tests');
+    const btnRunTests = document.getElementById('btnRunTests');
+    const btnClearCache = document.getElementById('btnClearCache');
+
+    // ---------- 小工具 ----------
+    function setStatus(txt){ statusText.textContent = txt; }
+    function setLive(on){
+      livePill.textContent = on ? 'Live' : '尚未啟動';
+      livePill.classList.toggle('live', on);
+    }
+    function kv(label, value, ok=true){
+      const div = document.createElement('div');
+      div.className = 'kv';
+      const b = document.createElement('b'); b.textContent = label;
+      const span = document.createElement('span'); span.textContent = value;
+      span.style.color = ok ? '#10b981' : '#ef4444';
+      div.appendChild(b); div.appendChild(span); testsEl.appendChild(div);
+    }
+    function clearTests(){ testsEl.innerHTML = ''; }
+
+    // 儲存/載入最近的 URL
+    const PARAM_URL = new URL(location.href).searchParams.get('model');
+    const SAVED_URL = localStorage.getItem('tm_model_url');
+    urlInput.value = PARAM_URL || SAVED_URL || DEFAULT_URL;
+
+    // 建立/更新預測清單 UI
+    function buildPredList(labels){
+      predList.innerHTML = '';
+      labels.forEach(lab =>{
+        const wrap = document.createElement('div');
+        wrap.className = 'pred';
+        const row = document.createElement('div'); row.className = 'row';
+        const name = document.createElement('div'); name.className = 'name'; name.textContent = lab;
+        const val = document.createElement('div'); val.className = 'val'; val.textContent = '0.00';
+        row.appendChild(name); row.appendChild(val);
+        const bar = document.createElement('div'); bar.className = 'bar';
+        const fill = document.createElement('i'); bar.appendChild(fill);
+        wrap.appendChild(row); wrap.appendChild(bar);
+        wrap.dataset.label = lab;
+        predList.appendChild(wrap);
+      });
+    }
+
+    // ---------- 載入模型（URL） ----------
+    async function loadFromUrl(folderUrl){
+      const base = folderUrl.endsWith('/') ? folderUrl : folderUrl + '/';
+      try{
+        setStatus('檢查 URL...');
+        modelPill.textContent = '模型：檢查中…';
+        // 先 HEAD 檢查 model.json 是否存在（某些伺服器不支援 HEAD，則 fallback GET）
+        const modelJson = base + 'model.json';
+        const metaJson = base + 'metadata.json';
+        const ok1 = await urlExists(modelJson);
+        const ok2 = await urlExists(metaJson);
+        if(!ok1 || !ok2){
+          const missing = (!ok1 ? 'model.json' : '') + (!ok1 && !ok2 ? ' 與 ' : '') + (!ok2 ? 'metadata.json' : '');
+          throw new Error(`找不到 ${missing}，請確認路徑：${base}`);
+        }
+        setStatus('載入模型中…');
+        modelPill.textContent = '模型：載入中…';
+        const m = await tmImage.load(modelJson, metaJson);
+        onModelReady(m);
+        // 記住此 URL
+        localStorage.setItem('tm_model_url', base);
+        urlInput.value = base;
+      }catch(err){
+        console.error(err);
+        modelPill.classList.add('err');
+        modelPill.textContent = '模型：載入失敗';
+        setStatus(`模型載入失敗：${err.message}`);
+        helpPill.textContent = '請檢查路徑是否正確，或改用「從資料夾載入」。';
+        throw err;
+      }
+    }
+
+    async function urlExists(url){
+      try{
+        let res = await fetch(url, { method:'HEAD' });
+        if(res.ok) return true;
+        // 某些伺服器拒絕 HEAD，改以 GET 再取消讀取
+        res = await fetch(url, { method:'GET'});
+        return res.ok;
+      }catch{ return false; }
+    }
+
+    // ---------- 載入模型（本機資料夾） ----------
+    async function loadFromFiles(fileList){
+      const files = Array.from(fileList);
+      // 找出 model.json / metadata.json / *.bin
+      const modelFile = files.find(f=>/model\.json$/i.test(f.name));
+      const metaFile  = files.find(f=>/metadata\.json$/i.test(f.name));
+      const weightFiles = files.filter(f=>/\.bin$/i.test(f.name));
+      if(!modelFile || !metaFile || weightFiles.length === 0){
+        setStatus('找不到必要檔案（model.json / metadata.json / *.bin）');
+        helpPill.textContent = '請選擇包含 Teachable Machine 匯出內容的整個資料夾。';
+        return;
+      }
+      try{
+        setStatus('從檔案載入中…');
+        modelPill.textContent = '模型：載入中…';
+        const m = await tmImage.loadFromFiles([modelFile, metaFile, ...weightFiles]);
+        onModelReady(m);
+        // 改為檔案來源時，清掉 URL 記錄避免誤導
+        localStorage.removeItem('tm_model_url');
+      }catch(err){
+        console.error(err);
+        modelPill.classList.add('err');
+        modelPill.textContent = '模型：載入失敗';
+        setStatus(`模型載入失敗：${err.message}`);
+        helpPill.textContent = '請確認檔案完整或重新匯出模型。';
+        throw err;
+      }
+    }
+
+    function onModelReady(m){
+      model = m;
+      maxPredictions = model.getTotalClasses();
+      classesPill.hidden = false; classesPill.textContent = `分類類別：${maxPredictions}`;
+      modelPill.textContent = '模型：就緒 ✅';
+      setStatus('模型已載入，可按「開始」');
+      const labels = (model?.metadata?.labels) || Array.from({length:maxPredictions}, (_,i)=>`Class ${i+1}`);
+      buildPredList(labels);
+      helpPill.textContent = '可開始推論或調整設定。';
+      // 啟用控制鈕（尚未啟動影像）
+      btnStart.disabled = false; btnFlip.disabled = true; btnShot.disabled = true; btnStop.disabled = true;
+    }
+
+    // ---------- 影像與預測 ----------
+    async function start(){
+      try{
+        if (!model){ setStatus('尚未載入模型'); return; }
+        const size = parseInt(resSel.value,10);
+        flip = true; // 預設鏡像
+        const cam = new tmImage.Webcam(size, size * 3/4, flip);
+        setStatus('請授權相機…');
+        await cam.setup({ facingMode: 'user', width: size, height: size*3/4 });
+        await cam.play();
+        webcam = cam;
+        running = true; setLive(true);
+        enableControls(true);
+        webcamCanvas.replaceWith(webcam.canvas);
+        helpPill.textContent = '推論中…';
+        window.requestAnimationFrame(loop);
+      }catch(err){
+        console.error(err);
+        setStatus('啟動失敗：可能未授權或裝置不支援');
+        livePill.classList.add('err'); livePill.textContent = '錯誤';
+      }
+    }
+
+    function enableControls(on){
+      btnStop.disabled = !on; btnFlip.disabled = !on; btnShot.disabled = !on;
+      btnStart.disabled = on;
+      downloadLink.setAttribute('aria-disabled', (!on).toString());
+    }
+
+    async function loop(){
+      if (!running) return;
+      webcam.update();
+      await predict();
+      frames++; const now = performance.now();
+      if (now - lastFrameTime >= 1000){
+        const fps = frames; frames = 0; lastFrameTime = now; fpsEl.textContent = fps;
+      }
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict(){
+      const prediction = await model.predict(webcam.canvas);
+      const sorted = [...prediction].sort((a,b)=> b.probability - a.probability);
+      const top = sorted[0];
+      top1Pill.hidden = false; top1Text.textContent = `${top.className}（${top.probability.toFixed(2)}）`;
+      prediction.forEach(p =>{
+        const row = [...predList.children].find(el => el.dataset.label === p.className);
+        if (!row) return;
+        row.querySelector('.val').textContent = p.probability.toFixed(2);
+        row.querySelector('.bar > i').style.width = `${Math.round(p.probability*100)}%`;
+      });
+    }
+
+    async function stop(){
+      running = false; setLive(false);
+      if (webcam){ await webcam.stop(); }
+      enableControls(false);
+      btnStart.disabled = false; btnFlip.disabled = true; btnShot.disabled = true; btnStop.disabled = true;
+      helpPill.textContent = '已暫停'; setStatus('已暫停');
+    }
+
+    async function toggleFlip(){
+      if (!webcam) return;
+      webcam.flip = !webcam.flip; flip = webcam.flip;
+      setStatus(flip ? '鏡像開啟' : '鏡像關閉');
+    }
+
+    function capture(){
+      if (!webcam) return;
+      const href = webcam.canvas.toDataURL('image/png');
+      downloadLink.href = href; downloadLink.textContent = '已更新擷取影像';
+      setStatus('已擷取影像，可下載');
+    }
+
+    // 事件繫結
+    document.getElementById('btnStart').addEventListener('click', start);
+    document.getElementById('btnStop').addEventListener('click', stop);
+    document.getElementById('btnFlip').addEventListener('click', toggleFlip);
+    document.getElementById('btnShot').addEventListener('click', capture);
+    resSel.addEventListener('change', async () => { if (running) { await stop(); await start(); }});
+
+    btnTestUrl.addEventListener('click', async ()=>{
+      clearTests();
+      const base = (urlInput.value || '').trim();
+      if(!base){ kv('URL', '未填寫', false); return; }
+      const u1 = base.replace(/\/?$/, '/') + 'model.json';
+      const u2 = base.replace(/\/?$/, '/') + 'metadata.json';
+      kv('URL', base, true);
+      kv('model.json 存在', (await urlExists(u1)) ? 'OK' : '找不到', await urlExists(u1));
+      kv('metadata.json 存在', (await urlExists(u2)) ? 'OK' : '找不到', await urlExists(u2));
+    });
+    btnLoadUrl.addEventListener('click', async ()=>{ await stop(); await loadFromUrl((urlInput.value||'').trim()); });
+    btnLoadFiles.addEventListener('click', async ()=>{
+      if(!dirPicker.files || dirPicker.files.length===0){ setStatus('請先選擇包含模型的資料夾'); return; }
+      await stop(); await loadFromFiles(dirPicker.files);
+    });
+    btnClearCache.addEventListener('click', ()=>{ localStorage.removeItem('tm_model_url'); setStatus('已清除記錄的模型 URL'); });
+
+    // 快捷鍵
+    window.addEventListener('keydown', (e)=>{
+      if (e.key === 's' || e.key === 'S') (running ? stop() : start());
+      if (e.key === 'f' || e.key === 'F') toggleFlip();
+      if (e.key === 'c' || e.key === 'C') capture();
+    });
+
+    // 初始提示 + 若有參數或記錄自動預填
+    (async function init(){
+      setStatus('載入頁面完成，請設定模型來源');
+      // 若 URL 有 ?model= 參數或已記錄，嘗試預載（避免 404 時無法偵錯）
+      if (PARAM_URL || SAVED_URL) {
+        try { await loadFromUrl(urlInput.value); } catch(_) {}
+      }
+      // 自我檢測：提供最小測試案例
+      runSmokeTests();
+    })();
+
+    // ---------- 內建測試（Test Cases） ----------
+    function runSmokeTests(){
+      clearTests();
+      kv('TFJS 是否載入', !!(window.tf && tf.version && tf.version.tfjs), !!(window.tf));
+      kv('tmImage 是否載入', !!window.tmImage, !!window.tmImage);
+      kv('是否 HTTPS / localhost', (location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1') ? 'OK' : '非安全環境（部分瀏覽器禁用相機）', (location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1'));
+      kv('預設模型路徑可用', '將在載入時檢查：' + urlInput.value, true);
+    }
+    document.getElementById('btnRunTests').addEventListener('click', runSmokeTests);
+  </script>
+</body>
+</html>
